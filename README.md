@@ -1,110 +1,66 @@
-# Data Science Project Boilerplate
+# Random Forest Classifier — Diabetes Prediction
 
-This boilerplate is designed to kickstart data science projects by providing a basic setup for database connections, data processing, and machine learning model development. It includes a structured folder organization for your datasets and a set of pre-defined Python packages necessary for most data science tasks.
+> Ensemble classifier applied to the Pima Indians Diabetes dataset, building on the same EDA pipeline as the Decision Tree project — a `RandomForestClassifier(n_estimators=60)` achieves **76.0% accuracy** without any hyperparameter tuning, surpassing the tuned single tree's 71.4% and demonstrating the ensemble advantage.
 
-## Structure
+---
 
-The project is organized as follows:
+## Problem
 
-- **`src/app.py`** → Main Python script where your project will run.
-- **`src/explore.ipynb`** → Notebook for exploration and testing. Once exploration is complete, migrate the clean code to `app.py`.
-- **`src/utils.py`** → Auxiliary functions, such as database connection.
-- **`requirements.txt`** → List of required Python packages.
-- **`models/`** → Will contain your SQLAlchemy model classes.
-- **`data/`** → Stores datasets at different stages:
-  - **`data/raw/`** → Raw data.
-  - **`data/interim/`** → Temporarily transformed data.
-  - **`data/processed/`** → Data ready for analysis.
+Predict whether a patient has diabetes based on diagnostic measurements. Same clinical context as the Decision Tree project: an interpretable vs. powerful model comparison on identical data — the core question being how much accuracy the ensemble gains over a single decision boundary.
 
+## Dataset
 
-## ⚡ Initial Setup in Codespaces (Recommended)
+- **Source:** Pima Indians Diabetes dataset (768 rows × 9 features)
+- **Target:** `Outcome` — 1 = diabetes, 0 = no diabetes (65% / 35% class split)
+- **Features used after cleaning:** Glucose, BMI, Age, Pregnancies (top 4 by SelectKBest f_classif)
 
-No manual setup is required, as **Codespaces is automatically configured** with the predefined files created by the academy for you. Just follow these steps:
+The full EDA and preprocessing pipeline is identical to the Decision Tree project:
 
-1. **Wait for the environment to configure automatically**.
-   - All necessary packages and the database will install themselves.
-   - The automatically created `username` and `db_name` are in the **`.env`** file at the root of the project.
-2. **Once Codespaces is ready, you can start working immediately**.
+| Step | Action |
+|---|---|
+| Drop impossible columns | Insulin (48.7% zeros) and SkinThickness (29.6% zeros) removed |
+| Zero imputation | Group-stratified median imputation on Glucose, BloodPressure, BMI |
+| Outlier capping | IQR method on Pregnancies, DiabetesPedigreeFunction, Age |
+| Scaling | StandardScaler |
+| Feature selection | SelectKBest (f_classif, k=4) → Glucose, BMI, Age, Pregnancies |
+| Split | 80/20 stratified (614 train / 154 test) |
 
+## Model Results
 
-## 💻 Local Setup (Only if you can't use Codespaces)
+| Model | Accuracy | Notes |
+|---|---|---|
+| Single Decision Tree (tuned, max_depth=5) | 71.4% | GridSearchCV, 10-fold CV |
+| **Random Forest (n_estimators=60)** | **76.0%** | Default params, no tuning |
 
-**Prerequisites**
+A Random Forest with default settings beats a carefully tuned single tree by **+4.6 percentage points**. This is the ensemble effect in practice: 60 trees each trained on a random bootstrap sample and random feature subset, their majority votes averaging out individual errors.
 
-Make sure you have Python 3.11+ installed on your machine. You will also need pip to install the Python packages.
+## Key Takeaways
 
-**Installation**
+- **Ensembles beat single trees without tuning:** The Random Forest achieves higher accuracy than the GridSearchCV-tuned Decision Tree without any hyperparameter optimisation. The diversity of 60 independently grown trees is more valuable than perfect tuning of one.
+- **Bootstrap + feature randomness = reduced variance:** Each tree in the forest sees a different random sample of training data and a random subset of features at each split. This decorrelates the trees — their errors don't line up — so the ensemble vote is more reliable than any individual tree.
+- **Accuracy vs. interpretability:** The single Decision Tree can be plotted and inspected — a clinician can follow the exact path from features to prediction. The Random Forest is a black box of 60 trees. The 4.6% accuracy gain has a real cost in explainability.
 
-Clone the project repository to your local machine.
+## Tech Stack
 
-Navigate to the project directory and install the required Python packages:
+`Python` · `scikit-learn` · `pandas` · `NumPy` · `Matplotlib` · `Seaborn`
+
+## Run It Locally
 
 ```bash
+git clone https://github.com/matthewkane-ml/ML_RandomForest_MTK.git
+cd ML_RandomForest_MTK
 pip install -r requirements.txt
+jupyter notebook src/RandomForest.ipynb
 ```
 
-**Create a database (if necessary)**
+The trained model is saved to `models/` via `pickle`.
 
-Create a new database within the Postgres engine by customizing and executing the following command:
+## What I'd Do Next
 
-```bash
-$ psql -U postgres -c "DO \$\$ BEGIN 
-    CREATE USER my_user WITH PASSWORD 'my_password'; 
-    CREATE DATABASE my_database OWNER my_user; 
-END \$\$;"
-```
-Connect to the Postgres engine to use your database, manipulate tables, and data:
+- Run `GridSearchCV` on the Random Forest (`n_estimators`, `max_depth`, `min_samples_split`, `max_features`) to find the accuracy ceiling with proper tuning
+- Plot **feature importances** from the forest — which of the 4 features does the ensemble lean on most heavily? Compare against the single tree's split structure
+- Add **SHAP values** for individual predictions — this partially recovers interpretability from the ensemble without sacrificing accuracy
 
-```bash
-$ psql -U my_user -d my_database
-```
+---
 
-Once inside PSQL, you can create tables, run queries, insert, update, or delete data, and much more!
-
-**Environment Variables**
-
-Create a .env file in the root directory of the project to store your environment variables, such as your database connection string:
-
-```makefile
-DATABASE_URL="postgresql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB_NAME>"
-
-#example
-DATABASE_URL="postgresql://my_user:my_password@localhost:5432/my_database"
-```
-
-## Running the Application
-
-To run the application, execute the app.py script from the root directory of the project:
-
-```bash
-python src/app.py
-```
-
-## Adding Models
-
-To add SQLAlchemy model classes, create new Python script files within the models/ directory. These classes should be defined according to your database schema.
-
-Example model definition (`models/example_model.py`):
-
-```py
-from sqlalchemy.orm import declarative_base
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
-
-Base = declarative_base()
-
-class ExampleModel(Base):
-    __tablename__ = 'example_table'
-    id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(unique=True)
-```
-
-## Working with Data
-
-You can place your raw datasets in the data/raw directory, intermediate datasets in data/interim, and processed datasets ready for analysis in data/processed.
-
-To process data, you can modify the app.py script to include your data processing steps, using pandas for data manipulation and analysis.
-
-## Contributors
-
-This project is maintained by [matthewkane-ml](https://github.com/matthewkane-ml).
+**Author:** Matthew Kane — [LinkedIn](https://www.linkedin.com/in/thomas-k-392094410/) · [GitHub portfolio](https://github.com/matthewkane-ml)
